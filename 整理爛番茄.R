@@ -24,3 +24,7 @@ for (file in csv_files) {
 ######################
 ######################
 summary(movies_and_tv_enriched_text_mining)
+head(movies_and_tv_enriched_text_mining)
+######################
+######################
+######################
