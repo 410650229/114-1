@@ -7,14 +7,14 @@ merged_data_RLC <- merged_data[!(merged_data[[2]] %in% c("土地", "車位")), ]
 
 # 查看第13個變數的出現次數
 table(merged_data_RLC[[13]])
-garb = c("見其他登記事項","商業用","工業用","見使用執照","停車空間","農舍",
+garb = c("見其他登記事項","商業用","工業用","見使用執照","停車空間",
          "工商用","農業用","見其它登記事項","列管標準廠房","辦公室","店舖",
          "市場攤位","自設停車空間","店屋","防空避難室兼停車場","共有部份",
          "店鋪","旅館、防空避難室","地面一層：停車空間；地面二至五層：一般服務業",
          "一般零售場所、停車空間","店舖、辦公室","保養所、辦公室","自由職業事務所",
          "預拌混凝土場及瀝青拌合場","防空避難室、店舖","一般事務所","工廠","廠房",
-         "托兒所","補習班","店舖、停車空間","特產加工場員工宿舍（工業區）",
-         "防空避難室，旅館","停車空間，民俗文物館","餐廳","自用農舍","集村農舍",
+         "托兒所","補習班","店舖、停車空間",
+         "防空避難室，旅館","停車空間，民俗文物館","餐廳",
          "車庫、保齡球館、遊樂場、服務區","共有部分","飲食店","辦公廳",
          "店舖診所類場所","辦公室（廳）","畜牧設施（室內養雞場）","攤販中心",
          "辦公用","其他","商辦用","廠房、辦公室","溫室及植物環控栽培設施",
@@ -53,9 +53,9 @@ count_value_occurrences <- function(df, col_index, value) {
   return(count)
 }
 #############都市土地使用分區、非都市土地使用分區、非都市土地使用編定
-get_unique_values(merged_data_RLCt13, 2)
-count_value_occurrences(merged_data_RLCt13, 5, "住") 
 
+count_value_occurrences(merged_data_RLCt13, 5, "住") 
+get_unique_values(merged_data_RLC, 13)
 ##########################
 ##########合併!###########
 ##########################
@@ -95,9 +95,17 @@ merged_data_RLCt13_C2 <- merge_columns_if_possible(
   merged_data_RLCt13, 
   "車位移轉總面積平方公尺", 
   "車位移轉總面積.平方公尺.",
-  "車位移轉總面積b方公尺"
+  "車位移轉總面積p方公尺"
 )
 
+##########################
+##########################
+##########################
+names(merged_data_RLCt13_C2)
+
+get_unique_values(merged_data_RLCt13_C2, 5)
+get_unique_values(merged_data_RLCt13_C2, 6)
+get_unique_values(merged_data_RLCt13_C2, 7)
 
 
 #####################
@@ -140,3 +148,7 @@ calculate_na_ratio <- function(data) {
 ##########################
 na_result <- calculate_na_ratio(merged_data_RLCt13_C2)
 ###############
+# 將資料框匯出為 CSV 檔案
+write.csv(merged_data_RLCt13_C2, "RLCt13C2_merged_data.csv", row.names = FALSE)
+
+
