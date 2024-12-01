@@ -1,5 +1,7 @@
 setwd("C:\\Users\\User\\Desktop\\學\\大學\\資料探勘")
 
+install.packages("ggplot2")
+install.packages("reshape2")
 
 # 匯入 CSV 文件
 merged_data <- read.csv("merged_data.csv")
@@ -150,5 +152,118 @@ na_result <- calculate_na_ratio(merged_data_RLCt13_C2)
 ###############
 # 將資料框匯出為 CSV 檔案
 write.csv(merged_data_RLCt13_C2, "RLCt13C2_merged_data.csv", row.names = FALSE)
+########################################################################################################
+########################################################################################################
+########################################################################################################
 
 
+data <- read.csv("RLCt13C2_merged_data.csv")
+
+library(ggplot2)
+library(reshape2)
+
+# 建立列聯表 (第六個變數與第七個變數)
+contingency_table <- table(data[[6]], data[[7]])
+
+# 將列聯表轉換為長格式資料框
+contingency_df <- as.data.frame(as.table(contingency_table))
+colnames(contingency_df) <- c("Var6", "Var5", "Frequency")
+
+# 繪製矩陣圖，標註頻率
+ggplot(contingency_df, aes(x = Var5, y = Var6, fill = Frequency)) +
+  geom_tile(color = "white") +  # 繪製矩形
+  scale_fill_gradient(low = "lightblue", high = "blue", na.value = "red") +  # 設定漸層配色
+  geom_text(aes(
+    label = Frequency,
+    color = ifelse(Frequency == 0, "red", "black")  # 頻率為 0 用紅色，非 0 用黑色
+  ), size = 3) +
+  scale_color_identity() +  # 保留顏色自動識別
+  labs(
+    title = "非都市土地使用編定*非都市土地使用分區列連表矩陣",
+    x = "Variable 5",
+    y = "Variable 6"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)  # 調整 X 軸標籤
+  )
+
+# 列出頻率不為 0 的組合
+non_zero_combinations <- contingency_df[contingency_df$Frequency > 0, ]
+print(non_zero_combinations)
+
+########################################################################################################
+########################################################################################################
+########################################################################################################
+install.packages(c("tidyverse","dplyr"))
+library(tidyverse)
+library(dplyr)
+# 創建完整地址欄位
+data <- data %>%
+  mutate(Full_Address = paste(data[[1]], data[[3]], sep = ", "))
+
+# 篩選需要地理編碼的地址
+unique_addresses <- data %>%
+  distinct(Full_Address) %>%
+  filter(!is.na(Full_Address))  # 避免空地址
+
+# 定義檢查與補救函數
+check_address_complete <- function(address) {
+  grepl("縣|市", address)
+}
+
+add_city_county <- function(address) {
+  district <- sub(",.*", "", address)
+  mapping <- list(
+    "平鎮區" = "桃園市",
+    "豐原區" = "台中市",
+    "東區" = "新竹市",
+    "佳里區" = "台南市",
+    "永康區" = "台南市",
+    "大寮區" = "高雄市"
+  )
+  city_county <- mapping[[district]]
+  if (!is.null(city_county)) {
+    paste(city_county, address, sep = ", ")
+  } else {
+    address  # 返回原地址作為預設
+  }
+}
+
+# 檢查與補救地址
+unique_addresses <- unique_addresses %>%
+  mutate(
+    Is_Complete = sapply(Full_Address, check_address_complete),
+    Fixed_Address = ifelse(Is_Complete, Full_Address, 
+                           mapply(add_city_county, Full_Address))
+  )
+
+# 分離成功與失敗的地址
+valid_addresses <- unique_addresses %>%
+  filter(!is.na(Fixed_Address))
+head(valid_addresses,n=30)
+# 保留需要的變數
+valid_addresses <- valid_addresses %>%
+  select(Is_Complete, Fixed_Address)
+
+# 自訂修正函數
+process_fixed_address <- function(is_complete, address) {
+  if (is_complete) {
+    # 當 Is_Complete 為 TRUE，刪除逗號與其之前的字元
+    address <- sub(".*,\\s*", "", address)
+  } else {
+    # 當 Is_Complete 為 FALSE，移除逗號並檢查重複字元組
+    address <- gsub(",", "", address) # 移除逗號
+    # 移除重複的 "XX區XX區" 模式，保留後一組
+    address <- sub("(\\S+區)\\1", "\\1", address)
+  }
+  return(address)
+}
+
+# 應用修正函數到 Fixed_Address
+valid_addresses <- valid_addresses %>%
+  mutate(Fixed_Address = mapply(process_fixed_address, Is_Complete, Fixed_Address))
+
+# 查看結果
+head(valid_addresses)
+write.csv(valid_addresses, "valid_addresses", row.names = FALSE)
