@@ -1,5 +1,6 @@
 R.Version()
 install.packages("dplyr")
+install.packages("tidyr")
 # 設定工作目錄（可選）
 setwd("C:\\Users\\User\\Desktop\\大學\\四上\\PYTHON")
 
@@ -116,7 +117,7 @@ movies_final <- movies_final %>%
 print(vars_to_remove)
 colnames(movies_final)
 #######################################
-install.packages("tidyr")
+
 # 將所有空值或空白轉為 NA
 movies_final[movies_final == "" | movies_final == " "] <- NA
 
