@@ -102,7 +102,7 @@ grade_distribution <- movies_final %>%
 
 # 計算從TAG變數的主題分布
 topic_analysis <- movies_final %>%
-  select(Director.Name, 31:63) %>%  # 選擇第29到第61個變數
+  select(Director.Name, 23:55) %>%  # 選擇第29到第61個變數
   pivot_longer(cols = 2:ncol(.), names_to = "Tag", values_to = "Value") %>%  # 展開為長格式
   group_by(Director.Name, Tag) %>%  # 根據導演和Tag分組
   summarise(total = sum(Value, na.rm = TRUE), .groups = "drop") %>%  # 計算每個人的主題總計
@@ -117,3 +117,6 @@ combined_analysis <- combined_analysis %>%
   mutate(
     represent = apply(select(., 5:37), 1, function(x) colnames(select(., 5:37))[which.max(x)])
   )
+
+
+
