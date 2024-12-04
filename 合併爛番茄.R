@@ -185,6 +185,9 @@ movies_final[] <- lapply(movies_final, function(x) {
 movies_final$fir_year <- sub("^(\\d{4}).*", "\\1", movies_final$year)
 movies_final$fir_year <- as.numeric(movies_final$fir_year)  # 轉換為數字型別
 
+movies_final <- movies_final %>%
+  relocate(Director.Name,Birthday,Age,Birthplace,Movie.Title,credits,title,grade,fir_year,year, .before = everything())
+
 # 將 movies_final 資料框寫入 CSV 檔案
 write.csv(movies_final, "movies_final.csv", row.names = FALSE)
 
