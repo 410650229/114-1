@@ -1,6 +1,18 @@
-setwd("C:\\Users\\AA\\Desktop\\PYYYY")
-install.packages("tidyr")
-install.packages("dplyr")
+setwd("C:\\Users\\AA\\Downloads")
+# 安裝必要套件（如果尚未安裝）
+if (!require("igraph")) install.packages("igraph")
+if (!require("ggraph")) install.packages("ggraph")
+if (!require("tidygraph")) install.packages("tidygraph")
+if (!require("visNetwork")) install.packages("visNetwork")
+if (!require("tidyverse")) install.packages("tidyverse")
+if (!require("ggrepel")) install.packages("ggrepel")
+# 載入套件
+library(ggrepel)
+library(igraph)
+library(ggraph)
+library(tidygraph)
+library(visNetwork)
+library(tidyverse)
 movies_final =read.csv("movies_final.csv")
 
 head(movies_final)
@@ -39,7 +51,9 @@ get_unique_values(movies_final,5)
 ## 載入必要的套件##
 ###################
 library(dplyr)
-
+#########################################
+###############movies_clean##############
+#########################################
 # 檢查資料中是否有非數字（字串或其他類型），並重新命名變數
 movies_clean <- movies_final %>%
   mutate(
@@ -48,6 +62,105 @@ movies_clean <- movies_final %>%
     num_box_office = as.numeric(box_office),
     num_criticsScore_ratingCount = as.numeric(criticsScore_ratingCount) # 確保 criticsScore_ratingCount 是數字
   )
+
+colnames(movies_clean)
+################################
+################################
+################################
+library(igraph)
+library(ggraph)
+library(dplyr)
+
+# 假設 movies_clean 是你的資料框，包含 'Director.Name' 和 'title' 兩個欄位
+# movies_clean <- read.csv("movies_clean.csv")  # 如有需要可讀取資料
+
+# 創建一個包含導演和電影的邊資料框
+edges <- movies_clean %>%
+  select(Director.Name, title) %>%
+  distinct()  # 去除重複的導演與電影組合
+
+# 創建一個網絡圖對象
+g <- graph_from_data_frame(edges, directed = FALSE)
+
+# 計算節點的度數（即每個導演或電影的關聯數量）
+V(g)$degree <- degree(g)
+
+
+# 只顯示有多位導演的電影
+edges_filtered <- edges %>%
+  group_by(title) %>%
+  filter(n() > 1)  # 只選擇有多個導演參與的電影
+
+# 為所有節點初始化標籤為空字符串
+V(g)$label <- ""
+
+# 為電影節點添加標籤
+V(g)$label[V(g)$name %in% edges_filtered$title] <- V(g)$name[V(g)$name %in% edges_filtered$title]
+
+# 為導演節點添加標籤
+V(g)$label[V(g)$name %in% edges$Director.Name] <- V(g)$name[V(g)$name %in% edges$Director.Name]
+# 設定節點大小與顏色，根據度數（關聯強度）
+V(g)$size <- pmin(V(g)$degree * 3, 100)  # 節點大小根據度數（設定最大大小）
+
+# 設定節點顏色
+V(g)$color <- ifelse(V(g)$name %in% edges$Director.Name, "lightcoral",  # 導演為淺紅
+                     ifelse(V(g)$name %in% edges_filtered$title, "lightgreen",  # 電影為淺綠
+                            "lightblue"))  # 其他為淺藍
+# 可視化圖形
+ggraph(g, layout = "fr") + 
+  geom_edge_link(aes(alpha = 0.5), color = "gray") +  # 邊的顏色與透明度
+  geom_node_point(aes(size = size, color = color)) +  # 節點的大小與顏色
+  geom_node_text(aes(label = label), repel = TRUE, max.overlaps = 230, size = 3) +   # 節點的文字標籤
+  theme_void() +
+  ggtitle("Director-Movie Network")
+
+################################
+################################
+################################
+# 載入必要的包
+library(igraph)
+library(ggraph)
+library(dplyr)
+
+# 創建一個包含導演和電影的邊資料框
+edges <- movies_clean %>%
+  select(Director.Name, title) %>%
+  distinct()  # 去除重複的導演與電影組合
+
+# 計算每部電影參與的導演數量
+movie_directors_count <- edges %>%
+  group_by(title) %>%
+  summarise(director_count = n_distinct(Director.Name)) %>%
+  filter(director_count >= 2)  # 篩選出與至少兩位導演有關聯的電影
+
+# 過濾原始邊資料框，只保留這些電影
+edges_filtered <- edges %>%
+  filter(title %in% movie_directors_count$title)
+
+# 創建一個網絡圖對象
+g <- graph_from_data_frame(edges_filtered, directed = FALSE)
+
+# 計算節點的度數（即每個導演或電影的關聯數量）
+V(g)$degree <- degree(g)
+
+# 設定節點顏色與大小，根據度數（關聯強度）
+V(g)$size <- V(g)$degree * 3  # 節點大小根據度數
+
+# 設定顏色：導演節點為淺藍色，電影節點為淺紅色
+V(g)$color <- ifelse(grepl(" ", V(g)$name), "lightblue", "lightcoral")  # 電影和導演的顏色區分
+
+# 可視化圖形，並設置 max.overlaps = 230 以顯示更多標籤
+ggraph(g, layout = "fr") + 
+  geom_edge_link(aes(alpha = 0.5), color = "gray") +  # 邊的顏色與透明度
+  geom_node_point(aes(size = size, color = color)) +  # 節點的大小與顏色
+  geom_node_text(aes(label = name), repel = TRUE, max.overlaps = 230) +   # 節點的文字標籤
+  theme_void() +
+  ggtitle("Director-Movie Network (At least 2 Directors)")
+
+#########################################
+###############movies_clean##############
+#########################################
+
 
 # 分析每位人物的統計數據
 Director.Name_analysis <- movies_clean %>%
