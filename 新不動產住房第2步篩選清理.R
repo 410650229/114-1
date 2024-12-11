@@ -1,8 +1,8 @@
-setwd("C:\\Users\\User\\Desktop\\學\\大學\\資料探勘")
+
 
 install.packages("ggplot2")
 install.packages("reshape2")
-
+setwd("C:\\Users\\User\\Desktop\\學\\大學\\資料探勘")
 # 匯入 CSV 文件
 merged_data <- read.csv("merged_data.csv")
 time_event=read.csv("time_event - time_propeve.csv")
@@ -17,7 +17,7 @@ merged_data <- lapply(merged_data, function(column) {
 
 # 將結果轉回資料框
 merged_data <- as.data.frame(merged_data)
-get_unique_values(merged_data , 2)
+
 ###############################################
 ###########交易內容、用途、篩選################
 ###############################################
@@ -41,7 +41,7 @@ garb = c("見其他登記事項","商業用","工業用","見使用執照","停�
          "管理室、雞舍","作業廠房、附屬辦公室")
 merged_data_RLCt13 <- merged_data_RLC[!(merged_data_RLC[[13]] %in% garb), ]
 merged_data_GLCt13 <- merged_data_RLC[merged_data_RLC[[13]] %in% garb, ]
-get_unique_values(merged_data_RLCt13 , 13)
+
 ################################
 ##########資料檢視:函數#########
 ################################
@@ -86,9 +86,7 @@ filter_by_keyword <- function(data, column_name, keyword) {
 
 #############都市土地使用分區、非都市土地使用分區、非都市土地使用編定
 
-count_value_occurrences(merged_data_RLCt13, 5, "住") 
-get_unique_values(merged_data_RLCt13_C2 , 5)
-get_unique_values(merged_data_RLCt13_C2 , 13)
+
 ########################################
 ##########前處理-合併車位轉移變數#######
 ########################################
@@ -208,7 +206,9 @@ for (keyword in keywords) {
   filtered_data <- filter_keyword(merged_data_RLCt13_C2_t12_RC_c26, "備註", keyword)
   merged_data_RLCt13_C2_t12_RC_c26 <- merged_data_RLCt13_C2_t12_RC_c26[!(row.names(merged_data_RLCt13_C2_t12_RC_c26) %in% row.names(filtered_data)), ]
 }
-
+#####################################
+################資料檔名變數處理#####
+#####################################
 # 使用tidyr的separate函數
 library(tidyr)
 
@@ -217,8 +217,9 @@ merged_data_RLCt13_C2_t12_RC_c26 <- merged_data_RLCt13_C2_t12_RC_c26 %>%
   separate(source_file, into = c("year_quarter", "code", NA), sep = "_", extra = "drop", remove = FALSE)
 # 移除 source_file 欄位
 merged_data_RLCt13_C2_t12_RC_c26 <- merged_data_RLCt13_C2_t12_RC_c26[, !names(merged_data_RLCt13_C2_t12_RC_c26) %in% "source_file"]
-
-
+#################################
+############交易年月日合理篩選###
+#################################
 # 確保交易年月日是數值類型
 merged_data_RLCt13_C2_t12_RC_c26$交易年月日 <- as.numeric(merged_data_RLCt13_C2_t12_RC_c26$交易年月日)
 
@@ -241,13 +242,217 @@ filtered_count
 cat("篩選後保留的比例：",filtered_ratio * 100, "%\n")
 cat("被篩掉的比例：", removed_ratio * 100, "%\n")
 
-write.csv(merged_data_RLCt13_C2_t12_RC_c26_RY, "merged_data_RLCt13_C2_t12_RC_c26_RY.csv", row.names = FALSE)
 
 colnames(merged_data_RLCt13_C2_t12_RC_c26_RY)
 
-summary(merged_data_RLCt13_C2_t12_RC_c26_RY)
+
+############################################
+########交易紀錄匹配交易時間前一個政策######
+############################################
+# 將 Date 欄位轉換為民國年月日格式
+convert_to_republic_date <- function(date_column) {
+  # 移除多餘的引號
+  date_column <- gsub('"', '', date_column)
+  
+  # 檢查是否為日期格式
+  if (!all(grepl("^\\d{4}-\\d{2}-\\d{2}$", date_column))) {
+    stop("Date 欄位格式不正確，應為 YYYY-MM-DD。")
+  }
+  
+  # 轉換日期
+  republic_date <- sapply(date_column, function(x) {
+    date <- as.Date(x) # 轉換為 Date 類型
+    year <- as.numeric(format(date, "%Y")) - 1911 # 西元轉民國年
+    month <- format(date, "%m")
+    day <- format(date, "%d")
+    paste0(year, month, day) # 組合民國年月日
+  })
+  
+  return(as.numeric(republic_date))
+}
+
+# 將 time_event 的 Date 欄位轉換為民國日期格式
+time_event$RepublicDate <- convert_to_republic_date(time_event$Date)
+
+# 處理日期重疊的情況，將其他欄位以 "---" 連接
+library(dplyr)
+time_event <- time_event %>%
+  group_by(RepublicDate) %>%
+  summarise(across(everything(), ~ ifelse(is.character(.), paste(unique(.), collapse = "---"), unique(.)))) %>%
+  ungroup()
+
+library(dplyr)
+
+# 新增「發展前」虛擬政策資料
+time_event <- time_event %>%
+  bind_rows(data.frame(
+    RepublicDate = 1000,  # 虛擬民國日期
+    Event = "發展前",     # 政策名稱
+    順序 = 0,            # 順序號
+    概要 = NA            # 其他補充說明
+  ))
+library(data.table)
+
+# 將 merged_data 和 time_event 轉換為 data.table 格式
+merged_data_dt <- as.data.table(merged_data_RLCt13_C2_t12_RC_c26_RY)
+time_event_dt <- as.data.table(time_event)
+
+# 確保 `RepublicDate` 和 `交易年月日` 都是數字類型，並排序
+time_event_dt[, RepublicDate := as.numeric(RepublicDate)]
+merged_data_dt[, 交易年月日 := as.numeric(交易年月日)]
+
+# 在交易資料中新增一個區間 [交易年月日, 交易年月日]
+merged_data_dt[, `:=`(start = 交易年月日, end = 交易年月日)]
+
+# 在政策資料中新增一個區間 [RepublicDate, 無窮大]
+time_event_dt[, `:=`(start = RepublicDate, end = Inf)]
+
+# 使用 foverlaps 找到每筆交易之前的最近政策
+setkey(time_event_dt, start, end)
+setkey(merged_data_dt, start, end)
+
+# 使用 foverlaps 執行匹配
+result_dt <- foverlaps(
+  merged_data_dt, 
+  time_event_dt, 
+  by.x = c("start", "end"), 
+  by.y = c("start", "end"),
+  nomatch = 0
+)
+
+# 根據 `start` 進行分組，並選擇最近的政策
+result_dt <- result_dt[,
+                       .SD[.N], by = .(i.start)  # 每筆交易找出最近的過去政策
+]
+
+# 合併政策資訊到原始交易資料中
+result_dt <- merge(
+  merged_data_dt, 
+  result_dt, 
+  by.x = "start", 
+  by.y = "i.start", 
+  all.x = TRUE
+)
+
+# 移除不必要的欄位，並解決 .x 和 .y 的問題
+result_dt <- result_dt[, !grepl("\\.y$", colnames(result_dt)), with = FALSE]  # 移除 .y 欄位
 
 
+
+# 重新命名欄位，移除 `.x`
+setnames(result_dt, old = colnames(result_dt), new = gsub("\\.x$", "", colnames(result_dt)))
+
+# 檢查欄位名稱
+colnames(result_dt)
+
+
+# 將結果轉回 data.frame（如果需要）
+merged_data_RLCt13_C2_t12_RC_c26_RY_PROP <- as.data.frame(result_dt)
+colnames(time_event )
+colnames(merged_data_RLCt13_C2_t12_RC_c26_RY_PROP )
+
+
+# 移除不需要的欄位
+merged_data_RLCt13_C2_t12_RC_c26_RY_PROP <- merged_data_RLCt13_C2_t12_RC_c26_RY_PROP[, 
+                                                                                     setdiff(names(merged_data_RLCt13_C2_t12_RC_c26_RY_PROP), c("稅", "貸款", "其他", "概要", "i.end"))]
+
+# 合併 `time_event` 中的 `Event` 和 `順序` 兩個欄位，基於共同變數 "Date"
+merged_data_RLCt13_C2_t12_RC_c26_RY_PROP <- merge(
+  merged_data_RLCt13_C2_t12_RC_c26_RY_PROP, 
+  time_event[, c("Date", "Event", "順序")], 
+  by = "Date", 
+  all.x = TRUE  # 確保保留所有交易資料中的記錄
+)
+
+
+########################################################
+#############基於合併前資料集名稱新增縣市名欄位#########
+########################################################
+time_event_alfa_city <- read.csv("time_event - 字母與縣市.csv")
+# 1. 移除 file 欄位
+time_event_alfa_city <- time_event_alfa_city[, -1]
+
+# 2. 檢查縣市名與 code 是否一對一
+relation_check <- time_event_alfa_city %>%
+  group_by(縣市名, code) %>%
+  summarise(count = n(), .groups = 'drop')
+
+# 檢查是否一對一
+if (nrow(relation_check) == nrow(unique(relation_check[, c("縣市名", "code")]))) {
+  # 3. 保留不重複的觀察值
+  time_event_alfa_city_clean <- distinct(time_event_alfa_city)
+} else {
+  stop("縣市名與 code 並非一對一關係，請檢查資料！")
+}
+
+############################
+############################
+############################
+library(dplyr)
+
+# 1. 將 `code` 轉換為對應的縣市名
+merged_data_RLCt13_C2_t12_RC_c26_RY_PROP <- merged_data_RLCt13_C2_t12_RC_c26_RY_PROP %>%
+  left_join(time_event_alfa_city_clean, by = "code") %>%  # 匹配 code
+  select(縣市名, everything())  # 將縣市名移動到第一欄位
+
+# 按照 `交易年月日` 進行升序排列
+merged_data_RLCt13_C2_t12_RC_c26_RY_PROP <- merged_data_RLCt13_C2_t12_RC_c26_RY_PROP %>%
+  arrange(交易年月日)
+# 將 Date 欄位名稱改為 last_prop_date
+colnames(merged_data_RLCt13_C2_t12_RC_c26_RY_PROP)[colnames(merged_data_RLCt13_C2_t12_RC_c26_RY_PROP) == "Date"] <- "last_prop_date"
+
+# 取得欄位名稱
+cols <- colnames(merged_data_RLCt13_C2_t12_RC_c26_RY_PROP)
+
+# 找出 'last_prop_date' 的位置
+last_prop_date_index <- which(cols == "last_prop_date")
+
+# 移除 'last_prop_date' 欄位
+cols <- cols[cols != "last_prop_date"]
+
+# 將 'last_prop_date' 移到倒數第三個位置
+new_cols <- c(
+  cols[1:(length(cols) - 2)],  # 保留前面欄位
+  "last_prop_date",             # 插入 'last_prop_date' 在倒數第三位置
+  cols[(length(cols) - 1):length(cols)]  # 保留剩下的欄位
+)
+
+# 根據新的欄位順序重排資料框
+merged_data_RLCt13_C2_t12_RC_c26_RY_PROP <- merged_data_RLCt13_C2_t12_RC_c26_RY_PROP[, new_cols]
+
+write.csv(merged_data_RLCt13_C2_t12_RC_c26_RY_PROP, "merged_data_RLCt13_C2_t12_RC_c26_RY_PROP.csv", row.names = FALSE)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+######################################################################################################
+#########################已下為過時的探索式資料分析----資料集不是最新的###############################
+######################################################################################################
+############################
+###總價元極端值檢查#########
+############################
 # 確保欄位是數值類型
 merged_data_RLCt13_C2_t12_RC_c26_RY$`總價元` <- as.numeric(merged_data_RLCt13_C2_t12_RC_c26_RY$`總價元`)
 
@@ -271,73 +476,9 @@ count_out_of_range <- sum(out_of_range, na.rm = TRUE)
 cat("範圍內的觀察值數量：", count_within_range, "\n")
 cat("範圍外的觀察值數量：", count_out_of_range, "\n")
 
-
-
-
-
-
-
-
-
-
-# 將 Date 欄位轉換為民國年月日格式
-convert_to_republic_date <- function(date_column) {
-  # 移除多餘的引號
-  date_column <- gsub('"', '', date_column)
-  
-  # 檢查是否為日期格式
-  if (!all(grepl("^\\d{4}-\\d{2}-\\d{2}$", date_column))) {
-    stop("Date 欄位格式不正確，應為 YYYY-MM-DD。")
-  }
-  
-  # 轉換日期
-  republic_date <- sapply(date_column, function(x) {
-    date <- as.Date(x) # 轉換為 Date 類型
-    year <- as.numeric(format(date, "%Y")) - 1911 # 西元轉民國年
-    month <- format(date, "%m")
-    day <- format(date, "%d")
-    paste0(year, month, day) # 組合民國年月日
-  })
-  
-  return(republic_date)
-}
-
-# 轉換 Date 欄位
-time_event$RepublicDate <- as.numeric( convert_to_republic_date(time_event$Date))
-colnames(time_event)
-
-# 排序政策資料集
-time_event <- time_event[order(time_event$RepublicDate), ]
-
-# 為交易資料匹配最近的過去政策
-merged_data_RLCt13_C2_t12_RC_c26_RY <- merged_data_RLCt13_C2_t12_RC_c26_RY %>%
-  rowwise() %>%
-  mutate(
-    最近政策 = max(time_event$RepublicDate[time_event$RepublicDate <= 交易年月日], na.rm = TRUE)
-  ) %>%
-  left_join(time_event, by = c("最近政策" = "RepublicDate"))
-
-# 使用 base R 來移除指定欄位
-merged_data_RLCt13_C2_t12_RC_c26_RY <- merged_data_RLCt13_C2_t12_RC_c26_RY[,!(
-  colnames(merged_data_RLCt13_C2_t12_RC_c26_RY) %in% c("稅", "貸款", "其他","政策時期","Date","概要"))]
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+###############################################################
+###########################確認數值分布的######################
+###############################################################
 # 設定圖檔輸出資料夾
 output_folder <- "distribution_plots"
 if (!dir.exists(output_folder)) {
@@ -500,9 +641,6 @@ cat("所有圖表已生成並儲存在資料夾：", output_folder, "\n")
 
 
 
-
-
-
 ###################################################
 ####################篩選出數值型變數###############
 ###################################################
@@ -549,7 +687,7 @@ write.csv(data_cond4, "非都市但有未知.csv", row.names = FALSE)
 
 
 ########################################################################################################
-###################################列連表矩陣###########################################################
+################################非都市列連表矩陣###########################################################
 ########################################################################################################
 library(ggplot2)
 library(reshape2)
