@@ -1,4 +1,4 @@
-setwd("C:\\Users\\User\\Desktop\\大學\\四上\\PYTHON")
+setwd("C:\\Users\\User\\Desktop\\學\\大學\\PYTHON")
 
 # 安裝必要套件（如果尚未安裝）
 if (!require("igraph")) install.packages("igraph")
@@ -16,8 +16,24 @@ library(visNetwork)
 library(tidyverse)
 movies_final =read.csv("movies_final.csv")
 
-head(movies_final)
-colnames(movies_final)
+
+###################
+## 載入必要的套件##
+###################
+library(dplyr)
+#########################################
+###############movies_clean##############
+#########################################
+# 檢查資料中是否有非數字（字串或其他類型），並重新命名變數
+movies_clean <- movies_final %>%
+  mutate(
+    tomatometer = as.numeric(tomatometer),
+    audience_score = as.numeric(audience_score),
+    box_office = as.numeric(box_office),
+    criticsScore_ratingCount = as.numeric(criticsScore_ratingCount) # 確保 criticsScore_ratingCount 是數字
+  )
+
+colnames(movies_clean)
 
 ############################################
 ############################################
@@ -48,26 +64,9 @@ count_value_occurrences <- function(df, col_index, value) {
 }
 get_unique_values(movies_final,3)
 get_unique_values(movies_final,5)
-###################
-## 載入必要的套件##
-###################
-library(dplyr)
-#########################################
-###############movies_clean##############
-#########################################
-# 檢查資料中是否有非數字（字串或其他類型），並重新命名變數
-movies_clean <- movies_final %>%
-  mutate(
-    tomatometer = as.numeric(tomatometer),
-    audience_score = as.numeric(audience_score),
-    box_office = as.numeric(box_office),
-    criticsScore_ratingCount = as.numeric(criticsScore_ratingCount) # 確保 criticsScore_ratingCount 是數字
-  )
-
-colnames(movies_clean)
 
 ################################
-################################
+##########網絡圖################
 ################################
 library(igraph)
 library(ggraph)
@@ -116,10 +115,6 @@ ggraph(g, layout = "fr") +
   theme_void() +
   ggtitle("Director-Movie Network")+
   theme(legend.position = "none")
-
-################################
-################################
-################################
 # 載入必要的包
 library(igraph)
 library(ggraph)
@@ -162,19 +157,13 @@ V(g)$degree <- degree(g)
 V(g)$size <- V(g)$degree * 3  # 節點大小根據度數
 V(g)$color <- ifelse(V(g)$type == "Director", "lightblue", "lightcoral")  # 導演為藍色，電影為紅色
 
-# 可視化圖形，並設置 max.overlaps = 230 以顯示更多標籤
 ggraph(g, layout = "fr") + 
   geom_edge_link(aes(alpha = 0.5), color = "gray") +  # 邊的顏色與透明度
-  geom_node_point(aes(size = size, color = color)) +  # 節點的大小與顏色
-  geom_node_text(aes(label = name), repel = TRUE, max.overlaps = 230) +   # 節點的文字標籤
+  geom_node_point(aes(size = size, color = color)) +  # 節點大小與顏色
+  geom_node_text(aes(label = name), repel = TRUE, max.overlaps = 100) +   # 節點標籤
   theme_void() +
-  ggtitle("Director-Movie Network (At least 2 Directors)")+
+  ggtitle("Director-Movie Network (At least 2 Directors)") +
   theme(legend.position = "none")
-
-#########################################
-###############movies_clean##############
-#########################################
-
 library(igraph)
 library(ggraph)
 library(dplyr)
@@ -237,97 +226,8 @@ ggraph(g, layout = "fr") +
   theme(legend.position = "none")
 
 ########################################################
-#######################十個獎項#############################
+#######################分析評分#########################
 ########################################################
-# 計算導演的加權平均表現
-director_performance <- movies_clean %>%
-  group_by(Director.Name) %>%
-  summarise(
-    weighted_tomatometer = sum(tomatometer * criticsScore_ratingCount, na.rm = TRUE) / sum(criticsScore_ratingCount, na.rm = TRUE),
-    weighted_audience = sum(audience_score * criticsScore_ratingCount, na.rm = TRUE) / sum(criticsScore_ratingCount, na.rm = TRUE),
-    total_box_office = sum(box_office, na.rm = TRUE)
-  ) %>%
-  mutate(overall_score = (weighted_tomatometer + weighted_audience + total_box_office) / 3) %>%
-  arrange(overall_score)
-
-worst_director <- director_performance %>% slice(1)
-print(worst_director)
-
-# 計算差評率
-director_disapproval <- movies_clean %>%
-  group_by(Director.Name) %>%
-  summarise(
-    critics_disapproval_rate = sum(criticsScore_notLikedCount, na.rm = TRUE) / sum(criticsScore_ratingCount, na.rm = TRUE),
-    audience_disapproval_rate = mean(audience_score < 30, na.rm = TRUE)
-  ) %>%
-  mutate(average_disapproval = (critics_disapproval_rate + audience_disapproval_rate) / 2) %>%
-  arrange(desc(average_disapproval))
-
-worst_director_disapproval <- director_disapproval %>% slice(1)
-print(worst_director_disapproval)
-
-# 計算導演的平均票房
-director_box_office <- movies_clean %>%
-  group_by(Director.Name) %>%
-  summarise(avg_box_office = mean(box_office, na.rm = TRUE)) %>%
-  arrange(avg_box_office)
-
-worst_director_box_office <- director_box_office %>% slice(1)
-print(worst_director_box_office)
-
-# 計算爛電影比例
-low_quality_directors <- movies_clean %>%
-  group_by(Director.Name) %>%
-  summarise(
-    total_movies = n(),
-    low_quality_movies = sum(Movie.Title != "", na.rm = TRUE),
-    low_quality_ratio = low_quality_movies / total_movies
-  ) %>%
-  arrange(desc(low_quality_ratio))
-
-worst_low_quality_director <- low_quality_directors %>% slice(1)
-print(worst_low_quality_director)
-
-# 計算導演在每個主題類型中的表現
-genre_performance <- movies_clean %>%
-  pivot_longer(cols = starts_with("Action"):starts_with("Anime"), names_to = "Genre", values_to = "HasGenre") %>%
-  filter(HasGenre == TRUE) %>%
-  group_by(Director.Name, Genre) %>%
-  summarise(
-    avg_tomatometer = mean(tomatometer, na.rm = TRUE),
-    avg_audience_score = mean(audience_score, na.rm = TRUE)
-  ) %>%
-  arrange(avg_tomatometer, avg_audience_score)
-
-print(genre_performance)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# 分析每位人物的統計數據
 Director.Name_analysis <- movies_clean %>%
   group_by(Director.Name) %>%
   summarise(
@@ -335,30 +235,26 @@ Director.Name_analysis <- movies_clean %>%
     total_works = n(),
     
     # 計算各項平均值，忽略非數字或遺失值
-    avg_tomatometer = mean(num_tomatometer, na.rm = TRUE),
-    avg_audience_score = mean(num_audience_score, na.rm = TRUE),
-    avg_box_office = mean(num_box_office, na.rm = TRUE),
+    avg_tomatometer = mean(tomatometer, na.rm = TRUE),
+    avg_audience_score = mean(audience_score, na.rm = TRUE),
+    avg_box_office = mean(box_office, na.rm = TRUE),
     
     # 計算遺失值或非數字數量
-    missing_tomatometer = sum(is.na(num_tomatometer)),
-    missing_audience_score = sum(is.na(num_audience_score)),
-    missing_box_office = sum(is.na(num_box_office)),
+    missing_tomatometer = sum(is.na(tomatometer)),
+    missing_audience_score = sum(is.na(audience_score)),
+    missing_box_office = sum(is.na(box_office)),
     
     # 計算 criticsScore_ratingCount 的總和
-    total_criticsScore_ratingCount = sum(num_criticsScore_ratingCount, na.rm = TRUE),
+    total_criticsScore_ratingCount = sum(criticsScore_ratingCount, na.rm = TRUE),
     
     # 計算 total_criticsScore_ratingCount 除以 (total_works - missing_tomatometer)
     critics_per_work = total_criticsScore_ratingCount / (total_works - missing_tomatometer)
   ) %>%
   arrange(avg_tomatometer, avg_audience_score, avg_box_office)
 
-
-write.csv(Director.Name_analysis, "Director.Name_analysis.csv", row.names = FALSE)
-
-##########################
-##########################
-##########################
-##########################
+########################################################
+#######################分析類別#########################
+########################################################
 # 載入必要套件
 library(dplyr)
 library(tidyr)
@@ -396,5 +292,238 @@ combined_analysis <- combined_analysis %>%
     represent = apply(select(., 5:37), 1, function(x) colnames(select(., 5:37))[which.max(x)])
   )
 
+##########################################################################
+################人物-作品類別矩陣視覺化###################################
+##########################################################################
+# 加載必要套件
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(reshape2)
+# Step 1: 計算每位導演拍攝的各類型作品數量
+director_genre_matrix <- movies_clean %>%
+  select(Director.Name, Action:Anime) %>% # 選取導演和類型列
+  group_by(Director.Name) %>%
+  summarise(across(Action:Anime, sum, na.rm = TRUE)) %>%
+  ungroup()
+
+# Step 2: 計算每個導演的總作品數量（按行總和排序）
+director_genre_matrix <- director_genre_matrix %>%
+  mutate(total_count = rowSums(select(., Action:Anime)))
+
+# 排序導演，從最多作品數到最少
+director_genre_matrix <- director_genre_matrix %>%
+  arrange(desc(total_count))
+
+# Step 3: 計算每個類型的總作品數量（按列總和排序）
+genre_totals <- colSums(select(director_genre_matrix, Action:Anime))
+
+# 排序類型，從最多作品數到最少
+ordered_genres <- names(sort(genre_totals, decreasing = TRUE))
+
+# Step 4: 將數據轉換為長格式以適應 ggplot
+long_data <- director_genre_matrix %>%
+  pivot_longer(cols = ordered_genres, 
+               names_to = "Genre", 
+               values_to = "Count")
+
+# Step 5: 繪製排序後的熱圖
+ggplot(long_data, aes(x = Genre, y = Director.Name, fill = Count)) +
+  geom_tile(color = "white") + # 繪製熱圖
+  scale_fill_gradient(low = "white", high = "steelblue") + # 設置顏色漸變
+  theme_minimal() +
+  labs(
+    title = "Director-Genre Relationship Heatmap",
+    x = "Genre",
+    y = "Director",
+    fill = "Count"
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1), # 旋轉類型標籤
+    axis.text.y = element_text(size = 6) # 控制導演名字的大小
+  )
+###########################################################
+######################各直方圖#############################
+###########################################################
+########################################################
+#######################評分為0########################## 
+########################################################
+# 假設 'movies_clean' 是包含所有電影與類型資料的數據框
+library(tidyverse)
+
+# 1. 去除重複的作品（以作品名稱來判斷重複）
+unique_movies <- movies_clean %>%
+  distinct(Movie.Title, .keep_all = TRUE)
+
+# 2. 把 'content_metadataGenres' 展開成多個類型，並計數每個類型的出現次數
+genre_counts <- unique_movies %>%
+  separate_rows(content_metadataGenres, sep = ",") %>%  # 分割每個作品的類型
+  mutate(content_metadataGenres = str_trim(content_metadataGenres)) %>%  # 去除多餘空格
+  count(content_metadataGenres)  # 計算每個類型的數量
+
+# 3. 繪製類型分布直方圖
+ggplot(genre_counts, aes(x = reorder(content_metadataGenres, n), y = n)) +
+  geom_bar(stat = "identity", fill = "skyblue") +
+  coord_flip() +  # 水平顯示
+  labs(title = "Distribution of Movie Genres",
+       x = "Genre",
+       y = "Frequency") +
+  theme_minimal()
+################################################
+####################全部作品####################
+################################################
+# 假設 'movies_clean' 是包含所有電影與類型資料的數據框
+library(tidyverse)
+
+# 1. 去除重複的作品（以作品名稱來判斷重複）
+unique_movies <- movies_clean %>%
+  distinct(title, .keep_all = TRUE)
+
+# 2. 把 'content_metadataGenres' 展開成多個類型，並計數每個類型的出現次數
+genre_counts <- unique_movies %>%
+  separate_rows(content_metadataGenres, sep = ",") %>%  # 分割每個作品的類型
+  mutate(content_metadataGenres = str_trim(content_metadataGenres)) %>%  # 去除多餘空格
+  count(content_metadataGenres)  # 計算每個類型的數量
+
+# 3. 繪製類型分布直方圖
+ggplot(genre_counts, aes(x = reorder(content_metadataGenres, n), y = n)) +
+  geom_bar(stat = "identity", fill = "skyblue") +
+  coord_flip() +  # 水平顯示
+  labs(title = "Distribution of Movie Genres",
+       x = "Genre",
+       y = "Frequency") +
+  theme_minimal()
+########################################
+################平均評分################
+########################################
+# 假設 'movies_clean' 是包含所有電影與類型資料的數據框
+library(tidyverse)
+
+# 1. 去除重複的作品（以作品名稱來判斷重複）
+unique_movies <- movies_clean %>%
+  distinct(title, .keep_all = TRUE)
+
+# 2. 把 'content_metadataGenres' 展開成多個類型，並保留相對應的評分
+genre_avg_scores <- unique_movies %>%
+  separate_rows(content_metadataGenres, sep = ",") %>%  # 分割每個作品的類型
+  mutate(content_metadataGenres = str_trim(content_metadataGenres)) %>%  # 去除多餘空格
+  group_by(content_metadataGenres) %>%  # 按類型分組
+  summarise(
+    avg_tomatometer = mean(tomatometer, na.rm = TRUE),  # 計算平均專家評分
+    avg_audience_score = mean(audience_score, na.rm = TRUE)  # 計算平均觀眾評分
+  ) %>%
+  pivot_longer(cols = starts_with("avg"), names_to = "score_type", values_to = "avg_score")
+
+# 3. 繪製每個類型的平均評分直方圖
+ggplot(genre_avg_scores, aes(x = reorder(content_metadataGenres, avg_score), y = avg_score, fill = score_type)) +
+  geom_bar(stat = "identity", position = "dodge") +  # 條形圖
+  coord_flip() +  # 水平顯示
+  labs(title = "Average Ratings by Movie Genre",
+       x = "Genre",
+       y = "Average Rating",
+       fill = "Rating Type") +
+  theme_minimal()
+########################################
+###############評分數量#################
+########################################
+library(tidyverse)
+
+# 假設 'movies_clean' 是包含電影資料的數據框
+
+# 1. 計算每位導演的 `overlay_criticsTop_ratingCount` 和 `criticsScore_ratingCount` 總和
+director_rating_counts <- movies_clean %>%
+  group_by(Director.Name) %>%
+  summarise(
+    total_overlay_criticsTop_ratingCount = sum(overlay_criticsTop_ratingCount, na.rm = TRUE),
+    total_criticsScore_ratingCount = sum(criticsScore_ratingCount, na.rm = TRUE)
+  ) %>%
+  pivot_longer(cols = starts_with("total"), names_to = "rating_type", values_to = "rating_count")
+
+# 2. 繪製導演的評分數量長條圖
+ggplot(director_rating_counts, aes(x = reorder(Director.Name, rating_count), y = rating_count, fill = rating_type)) +
+  geom_bar(stat = "identity", position = "dodge") +  # 長條圖
+  coord_flip() +  # 水平顯示
+  labs(title = "Critic Rating Counts by Director",
+       x = "Director",
+       y = "Rating Count",
+       fill = "Rating Type") +
+  theme_minimal()
+
+# 3. 計算每個作品類別的 `overlay_criticsTop_ratingCount` 和 `criticsScore_ratingCount` 總和
+genre_rating_counts <- movies_clean %>%
+  separate_rows(content_metadataGenres, sep = ",") %>%  # 分割每個作品的類型
+  mutate(content_metadataGenres = str_trim(content_metadataGenres)) %>%  # 去除空格
+  group_by(content_metadataGenres) %>%
+  summarise(
+    total_overlay_criticsTop_ratingCount = sum(overlay_criticsTop_ratingCount, na.rm = TRUE),
+    total_criticsScore_ratingCount = sum(criticsScore_ratingCount, na.rm = TRUE)
+  ) %>%
+  pivot_longer(cols = starts_with("total"), names_to = "rating_type", values_to = "rating_count")
+
+# 4. 繪製作品類別的評分數量長條圖
+ggplot(genre_rating_counts, aes(x = reorder(content_metadataGenres, rating_count), y = rating_count, fill = rating_type)) +
+  geom_bar(stat = "identity", position = "dodge") +  # 長條圖
+  coord_flip() +  # 水平顯示
+  labs(title = "Critic Rating Counts by Movie Genre",
+       x = "Genre",
+       y = "Rating Count",
+       fill = "Rating Type") +
+  theme_minimal()
+########################################
+###############導演作品數量#############
+########################################
+library(ggplot2)
+library(dplyr)
+
+# 計算每位導演的作品數量
+director_counts <- movies_clean %>%
+  group_by(Director.Name) %>%
+  summarise(total_movies = n()) %>%
+  arrange(desc(total_movies)) # 按作品數降序排列
+
+# 繪製長條圖
+ggplot(director_counts, aes(x = reorder(Director.Name, -total_movies), y = total_movies)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  labs(title = "Number of Movies per Director",
+       x = "Director Name",
+       y = "Total Movies") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) # 旋轉導演名稱以便顯示
+
+library(dplyr)
+########################################
+###############導演合作作品數量#########
+########################################
+library(dplyr)
+library(ggplot2)
+
+# 計算合作情況：相同 Title 但不同導演
+director_collaboration <- movies_clean %>%
+  group_by(title) %>%
+  filter(n_distinct(Director.Name) > 1) %>% # 篩選出多導演的電影
+  ungroup() %>%
+  separate_rows(Director.Name, sep = ",\\s*") %>% # 分割多導演
+  group_by(Director.Name) %>%
+  summarise(co_directed_movies = n(), .groups = "drop") %>% # 計算每位導演的合作次數
+  filter(co_directed_movies > 0) %>% # 排除 0 的情況
+  arrange(desc(co_directed_movies)) # 按合作次數降序排列
+
+# 繪製長條圖
+ggplot(director_collaboration, aes(x = reorder(Director.Name, -co_directed_movies), y = co_directed_movies)) +
+  geom_bar(stat = "identity", fill = "forestgreen") +
+  labs(title = "Number of Co-Directed Movies per Director",
+       x = "Director Name",
+       y = "Co-Directed Movies") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + # 旋轉 x 軸文字
+  scale_x_discrete() + # 使用離散刻度
+  scale_y_continuous(breaks = seq(0, max(director_collaboration$co_directed_movies), by = 3)) # 遞增3刻度
 
 
+############################
+############################
+#研究問題：專家評分為 0 的影視作品有何特徵？是否存在明顯模式？ 
+#分析方法： 比較專家評分為 0 和其他影視作品在票房、類型等變數上的分布差異。 檢視低評分作品是否與導演經驗、首次上映年份或類型有相關性。
+############################
+############################
+summary(movies_clean)
