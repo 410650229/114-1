@@ -198,6 +198,9 @@ movies_final <- movies_final %>%
 movies_final <- movies_final %>%
   relocate(Director.Name,Birthday,Age,Birthplace,Movie.Title,title,credits,grade,fir_year,year, .before = everything())
 
+# 移除 "content_metadataProps" 欄位
+movies_final <- movies_final[, !(names(movies_final) %in% "content_metadataProps")]
+
 # 將 movies_final 資料框寫入 CSV 檔案
 write.csv(movies_final, "movies_final.csv", row.names = FALSE)
 

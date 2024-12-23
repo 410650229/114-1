@@ -276,7 +276,8 @@ grade_distribution <- movies_final %>%
 
 # 計算從TAG變數的主題分布
 topic_analysis <- movies_final %>%
-  select(Director.Name, 23:55) %>%  
+  select(Director.Name, 22:54
+         ) %>%  
   pivot_longer(cols = 2:ncol(.), names_to = "Tag", values_to = "Value") %>%  # 展開為長格式
   group_by(Director.Name, Tag) %>%  # 根據導演和Tag分組
   summarise(total = sum(Value, na.rm = TRUE), .groups = "drop") %>%  # 計算每個人的主題總計
@@ -291,6 +292,15 @@ combined_analysis <- combined_analysis %>%
   mutate(
     represent = apply(select(., 5:37), 1, function(x) colnames(select(., 5:37))[which.max(x)])
   )
+#########################
+#########################
+colnames(combined_analysis)
+# 繪製 represent 次數的柱狀圖，並按照次數排序
+ggplot(combined_analysis, aes(x = reorder(represent, represent, FUN = function(x) -length(x)))) +
+  geom_bar(fill = "skyblue", color = "black") +
+  labs(title = "人物主要參與類別", x = "represent", y = "Count") +
+  theme(axis.text.x = element_text(angle = 0, hjust = 1)) 
+
 
 ##########################################################################
 ################人物-作品類別矩陣視覺化###################################
@@ -299,7 +309,7 @@ combined_analysis <- combined_analysis %>%
 library(dplyr)
 library(tidyr)
 library(ggplot2)
-library(reshape2)
+
 # Step 1: 計算每位導演拍攝的各類型作品數量
 director_genre_matrix <- movies_clean %>%
   select(Director.Name, Action:Anime) %>% # 選取導演和類型列
@@ -396,6 +406,30 @@ ggplot(genre_counts, aes(x = reorder(content_metadataGenres, n), y = n)) +
 ########################################
 ################平均評分################
 ########################################
+####################人物#################
+colnames(movies_clean)
+# 2. 把 'Director.Name' 展開並計算平均評分
+
+director_avg_scores <- movies_clean %>%
+  group_by(Director.Name) %>%  # 按導演名稱分組
+  summarise(
+    avg_tomatometer = mean(tomatometer, na.rm = TRUE),  # 計算平均專家評分
+    avg_audience_score = mean(audience_score, na.rm = TRUE)  # 計算平均觀眾評分
+  ) %>%
+  pivot_longer(cols = starts_with("avg"), names_to = "score_type", values_to = "avg_score")  # 長格式轉換
+
+# 3. 繪製每個導演的平均評分直方圖
+ggplot(director_avg_scores, aes(x = reorder(Director.Name, avg_score), y = avg_score, fill = score_type)) +
+  geom_bar(stat = "identity", position = "dodge") +  # 條形圖
+  coord_flip() +  # 水平顯示
+  labs(title = "Average Ratings by Director",
+       x = "Director Name",
+       y = "Average Rating",
+       fill = "Rating Type") +
+  theme_minimal()
+
+###########################電影類別###############################
+
 # 假設 'movies_clean' 是包含所有電影與類型資料的數據框
 library(tidyverse)
 
@@ -519,11 +553,63 @@ ggplot(director_collaboration, aes(x = reorder(Director.Name, -co_directed_movie
   scale_x_discrete() + # 使用離散刻度
   scale_y_continuous(breaks = seq(0, max(director_collaboration$co_directed_movies), by = 3)) # 遞增3刻度
 
+################################################
+######################合作作品數量/作品數量柱方圖##################
+################################################
+library(dplyr)
+library(ggplot2)
+
+########################################
+###############導演作品數量#############
+########################################
+
+# 計算每位導演的作品數量
+director_counts <- movies_clean %>%
+  group_by(Director.Name) %>%
+  summarise(total_movies = n()) %>%
+  arrange(desc(total_movies)) # 按作品數降序排列
+
+########################################
+###############導演合作作品數量#########
+########################################
+
+# 計算合作情況：相同 Title 但不同導演
+director_collaboration <- movies_clean %>%
+  group_by(title) %>%
+  filter(n_distinct(Director.Name) > 1) %>% # 篩選出多導演的電影
+  ungroup() %>%
+  separate_rows(Director.Name, sep = ",\\s*") %>% # 分割多導演
+  group_by(Director.Name) %>%
+  summarise(co_directed_movies = n(), .groups = "drop") %>% # 計算每位導演的合作次數
+  filter(co_directed_movies > 0) %>% # 排除 0 的情況
+  arrange(desc(co_directed_movies)) # 按合作次數降序排列
+
+########################################
+###############合併資料集##############
+########################################
+
+# 合併導演的作品數量和合作作品數量
+director_summary <- director_counts %>%
+  left_join(director_collaboration, by = "Director.Name") %>%
+  mutate(co_directed_movies = ifelse(is.na(co_directed_movies), 0, co_directed_movies), # 處理沒有合作的導演
+         collaboration_ratio = co_directed_movies / total_movies) # 計算合作比例
+
+########################################
+###############繪製柱狀圖##############
+########################################
+
+# 繪製合作作品數量 / 作品數量的比率柱狀圖
+ggplot(director_summary, aes(x = reorder(Director.Name, -collaboration_ratio), y = collaboration_ratio)) +
+  geom_bar(stat = "identity", fill = "lightcoral", color = "black") +
+  labs(title = "Collaboration Ratio per Director",
+       x = "Director Name",
+       y = "Collaboration Ratio (Co-directed Movies / Total Movies)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) # 旋轉導演名稱以便顯示
 
 ############################
 ############################
-#研究問題：專家評分為 0 的影視作品有何特徵？是否存在明顯模式？ 
-#分析方法： 比較專家評分為 0 和其他影視作品在票房、類型等變數上的分布差異。 檢視低評分作品是否與導演經驗、首次上映年份或類型有相關性。
+#
 ############################
 ############################
 summary(movies_clean)
