@@ -196,7 +196,9 @@ filter_keyword <- function(data, column, keyword) {
 
 # 將需要排除的樣本定義為關鍵字列表
 keywords <- c("親", "租", "預", "增", "加", "臨", "違", "工", 
-              "農", "店", "贈與", "繼承","政府機關標","父子","父女","母女","母子")
+              "農", "店", "贈與", "繼承","政府機關標","父子","父女","母女","母子",
+              "僅車", "轉讓", "夫妻", "祖孫", "共有持分")
+#有疑慮:夾層,未登記,陽台外推、「毛胚屋」、「裝潢」、「精裝修」、「車位」
 
 # 複製原始資料集
 merged_data_RLCt13_C2_t12_RC_c26 <- merged_data_RLCt13_C2_t12_RC
@@ -223,9 +225,10 @@ merged_data_RLCt13_C2_t12_RC_c26 <- merged_data_RLCt13_C2_t12_RC_c26[, !names(me
 # 確保交易年月日是數值類型
 merged_data_RLCt13_C2_t12_RC_c26$交易年月日 <- as.numeric(merged_data_RLCt13_C2_t12_RC_c26$交易年月日)
 
-# 篩選資料：保留範圍內的觀察值
 merged_data_RLCt13_C2_t12_RC_c26_RY <- merged_data_RLCt13_C2_t12_RC_c26 %>%
   filter(交易年月日 >= 601009 & 交易年月日 <= 1131128)
+
+
 
 # 計算比例
 original_count <- nrow(merged_data_RLCt13_C2_t12_RC_c26)  # 原始資料數量
@@ -245,7 +248,7 @@ cat("被篩掉的比例：", removed_ratio * 100, "%\n")
 
 colnames(merged_data_RLCt13_C2_t12_RC_c26_RY)
 
-
+time_event=read.csv("time_event - time_propeve.csv")
 ############################################
 ########交易紀錄匹配交易時間前一個政策######
 ############################################
@@ -344,25 +347,18 @@ setnames(result_dt, old = colnames(result_dt), new = gsub("\\.x$", "", colnames(
 
 # 檢查欄位名稱
 colnames(result_dt)
-
-
-# 將結果轉回 data.frame（如果需要）
+####################################
+####################################
+# 將結果轉回 data.frame（如果需要###
+####################################
+####################################
 merged_data_RLCt13_C2_t12_RC_c26_RY_PROP <- as.data.frame(result_dt)
-colnames(time_event )
-colnames(merged_data_RLCt13_C2_t12_RC_c26_RY_PROP )
 
+colnames(merged_data_RLCt13_C2_t12_RC_c26_RY_PROP)
 
 # 移除不需要的欄位
 merged_data_RLCt13_C2_t12_RC_c26_RY_PROP <- merged_data_RLCt13_C2_t12_RC_c26_RY_PROP[, 
                                                                                      setdiff(names(merged_data_RLCt13_C2_t12_RC_c26_RY_PROP), c("稅", "貸款", "其他", "概要", "i.end"))]
-
-# 合併 `time_event` 中的 `Event` 和 `順序` 兩個欄位，基於共同變數 "Date"
-merged_data_RLCt13_C2_t12_RC_c26_RY_PROP <- merge(
-  merged_data_RLCt13_C2_t12_RC_c26_RY_PROP, 
-  time_event[, c("Date", "Event", "順序")], 
-  by = "Date", 
-  all.x = TRUE  # 確保保留所有交易資料中的記錄
-)
 
 
 ########################################################
@@ -419,6 +415,29 @@ new_cols <- c(
 
 # 根據新的欄位順序重排資料框
 merged_data_RLCt13_C2_t12_RC_c26_RY_PROP <- merged_data_RLCt13_C2_t12_RC_c26_RY_PROP[, new_cols]
+
+#########################################
+##############欄位清理###################
+#########################################
+colnames(merged_data_RLCt13_C2_t12_RC_c26_RY_PROP)
+
+merged_data_RLCt13_C2_t12_RC_c26_RY_PROP <- merged_data_RLCt13_C2_t12_RC_c26_RY_PROP %>%
+  select(-start, -end, -code,-主建物面積,-附屬建物面積,-陽台面積)
+# 建立新的欄位 "欄位移轉總面積平方公尺"
+merged_data_RLCt13_C2_t12_RC_c26_RY_PROP$移轉總面積平方公尺 <- merged_data_RLCt13_C2_t12_RC_c26_RY_PROP$土地移轉總面積平方公尺 + merged_data_RLCt13_C2_t12_RC_c26_RY_PROP$建物移轉總面積平方公尺
+
+
+# 篩選保留移轉總面積平方公尺 >= 3 的觀察值
+merged_data_RLCt13_C2_t12_RC_c26_RY_PROP <- merged_data_RLCt13_C2_t12_RC_c26_RY_PROP[merged_data_RLCt13_C2_t12_RC_c26_RY_PROP$移轉總面積平方公尺 >= 3, ]
+# 移除 "總價元" 為 0 的觀察值
+merged_data_RLCt13_C2_t12_RC_c26_RY_PROP <- merged_data_RLCt13_C2_t12_RC_c26_RY_PROP[merged_data_RLCt13_C2_t12_RC_c26_RY_PROP$總價元 != 0, ]
+# 新增 "單位平方公尺金額" 欄位，基於 "總價元" 除以 "欄位移轉總面積平方公尺"
+merged_data_RLCt13_C2_t12_RC_c26_RY_PROP$單位平方公尺金額 <- merged_data_RLCt13_C2_t12_RC_c26_RY_PROP$總價元 / merged_data_RLCt13_C2_t12_RC_c26_RY_PROP$移轉總面積平方公尺
+# 移除 "單價元平方公尺" 欄位
+merged_data_RLCt13_C2_t12_RC_c26_RY_PROP <- merged_data_RLCt13_C2_t12_RC_c26_RY_PROP[, !names(merged_data_RLCt13_C2_t12_RC_c26_RY_PROP) %in% "單價元平方公尺"]
+
+
+
 
 write.csv(merged_data_RLCt13_C2_t12_RC_c26_RY_PROP, "merged_data_RLCt13_C2_t12_RC_c26_RY_PROP.csv", row.names = FALSE)
 
