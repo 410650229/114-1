@@ -142,6 +142,34 @@ colnames(merged_data_RLCt13_C2_t12)
 ########################################
 ###########移除:編號、移轉編號##########
 ########################################
+# 檢查 "編號" 欄位中是否有重複的樣本
+duplicates_編號 <- merged_data_RLCt13_C2_t12 %>%
+  filter(!is.na(編號)) %>%  # 過濾掉編號欄位為 NA 的樣本
+  group_by(編號) %>%
+  filter(n() > 1)  # 找出有重複的編號
+
+# 檢查 "移轉編號" 欄位中是否有重複的樣本
+duplicates_移轉編號 <- merged_data_RLCt13_C2_t12 %>%
+  filter(!is.na(移轉編號)) %>%  # 過濾掉移轉編號欄位為 NA 的樣本
+  group_by(移轉編號) %>%
+  filter(n() > 1)  # 找出有重複的移轉編號
+
+# 顯示有重複的樣本
+duplicates_編號
+duplicates_移轉編號
+# 刪除完全重複的樣本
+merged_data_RLCt13_C2_t12 <- merged_data_RLCt13_C2_t12[!duplicated(merged_data_RLCt13_C2_t12), ]
+
+# 檢查刪除後的資料集大小
+original_count <- nrow(merged_data_RLCt13_C2_t12)  # 原始資料數量
+filtered_count <- nrow(merged_data_unique)         # 刪除重複後的資料數量
+removed_count <- original_count - filtered_count   # 被刪除的資料數量
+
+# 比例計算
+removed_ratio <- removed_count / original_count
+cat("被刪掉的比例：", removed_ratio * 100, "%\n")
+
+
 merged_data_RLCt13_C2_t12_RC <- merged_data_RLCt13_C2_t12[, !(colnames(merged_data_RLCt13_C2_t12) %in% c("編號", "移轉編號"))]
 
 
@@ -424,7 +452,7 @@ colnames(merged_data_RLCt13_C2_t12_RC_c26_RY_PROP)
 merged_data_RLCt13_C2_t12_RC_c26_RY_PROP <- merged_data_RLCt13_C2_t12_RC_c26_RY_PROP %>%
   select(-start, -end, -code,-主建物面積,-附屬建物面積,-陽台面積)
 # 建立新的欄位 "欄位移轉總面積平方公尺"
-merged_data_RLCt13_C2_t12_RC_c26_RY_PROP$移轉總面積平方公尺 <- merged_data_RLCt13_C2_t12_RC_c26_RY_PROP$土地移轉總面積平方公尺 + merged_data_RLCt13_C2_t12_RC_c26_RY_PROP$建物移轉總面積平方公尺
+merged_data_RLCt13_C2_t12_RC_c26_RY_PROP$移轉總面積平方公尺 <-merged_data_RLCt13_C2_t12_RC_c26_RY_PROP$車位移轉平方公尺+ merged_data_RLCt13_C2_t12_RC_c26_RY_PROP$土地移轉總面積平方公尺 + merged_data_RLCt13_C2_t12_RC_c26_RY_PROP$建物移轉總面積平方公尺
 
 
 # 篩選保留移轉總面積平方公尺 >= 3 的觀察值
@@ -442,7 +470,13 @@ merged_data_RLCt13_C2_t12_RC_c26_RY_PROP <- merged_data_RLCt13_C2_t12_RC_c26_RY_
 write.csv(merged_data_RLCt13_C2_t12_RC_c26_RY_PROP, "merged_data_RLCt13_C2_t12_RC_c26_RY_PROP.csv", row.names = FALSE)
 
 
-
+#################
+#################
+#############################
+#後續可進行其他分析_整理結束#
+#############################
+#################
+#################
 
 
 
